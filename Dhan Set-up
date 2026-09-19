@@ -1,0 +1,59 @@
+# Dhan API Portal Configuration Guide
+### Project: Production-Grade Intraday Momentum Bot (Dhan HQ API)
+### Focus: Extracting Automated 2FA Security Credentials & Access Secrets
+
+---
+
+## Step 1: Accessing the Developer Portal
+1. Open your web browser and navigate to the official platform: **[web.dhan.co](https://dhan.co)**.
+2. Complete the primary secure authentication using your registered mobile number/email, password, and standard one-time mobile OTP token.
+
+---
+
+## Step 2: Routing to the Core Trading API Dashboard
+1. Once your main trading dashboard fully loads, focus on the **top right-hand corner**.
+2. Click on your **Profile Image / Account Name Container**.
+3. From the absolute dropdown system menu, select **DhanHQ Trading APIs** (or **Access DhanHQ APIs**).
+4. You will instantly pass through to the developer console dashboard.
+
+---
+
+## Step 3: Extracting API Access Keys
+Locate the central management layout zone labeled **API Access Keys**:
+
+* **Dhan Client ID:** Identify your core 10-digit account tracking number. 
+  - *Action:* Copy this numerical value and inject it into your configuration environment matrix as: `DHAN_CLIENT_ID`
+* **API Key & Access Token Secret Generation:**
+  - *Action:* Click the **Generate Token / Access Token** operational utility button.
+  - *Action:* The platform will flash your permanent **API Key** string along with your single-session **API Secret** string.
+  - *CRITICAL WARNING:* Copy both alphanumeric arrays immediately into your configuration script variables (`DHAN_API_KEY` and `DHAN_API_SECRET`). If you refresh or exit this dashboard interface, Dhan permanently masks the secret key for global vault security.
+
+---
+
+## Step 4: Extracting the Alphanumeric 2FA/TOTP Authentication Seed Key
+To ensure your AWS virtual machine can completely bypass manual user interventions at 06:00 AM IST, extract the underlying global master generation seed:
+
+1. On the same active Developer API dashboard frame, scroll down to the absolute layout block titled **Two-Factor Authentication (2FA) / TOTP Setup**.
+2. Click the configuration utility labeled **Set up TOTP** (or **Reset TOTP** if you have previously registered a mobile app scanner).
+3. The interface will render a graphic **QR Code** array on your monitor screen.
+4. **⚠️ DO NOT JUST SCAN THE QR CODE IMAGE WITH A PHONE CAMERA.**
+5. Examine the immediate bottom or side borders of the rendered QR code graphic box. Look for an absolute text string container labeled **"Secret Key"** or **"Can't scan? Use this text key string"**. It will appear as a prolonged, random sequence of capital letters and digits (e.g., `JBSWY3DPEHPK3PXP...`).
+6. *Action:* Copy this text sequence precisely. This is your core authentication asset string. Map it securely inside your workspace folder parameters as: `DHAN_TOTP_SECRET`
+7. *Action:* Now, scan the graphic QR code array with your mobile device's Google Authenticator app instance to maintain an active hardware-based manual login pathway for backup use.
+
+---
+
+## Step 5: Master Verification Configuration Check
+Verify that the `config.env` profile file located inside your cloud environment folder `/home/ubuntu/dhan_momentum_bot/` precisely reflects the extracted parameter blueprint below before initiating a market test run:
+
+```text
+DHAN_CLIENT_ID="1000XXXXXX"
+DHAN_API_KEY="your_copied_api_key_string"
+DHAN_API_SECRET="your_copied_api_secret_string"
+DHAN_TOTP_SECRET="YOUR_ALPHANUMERIC_TOTP_TEXT_SEED_KEY"
+ENVIRONMENT="SANDBOX"
+DRY_RUN="false"
+TOTAL_CAPITAL=2000
+MAX_ACTIVE_TRADES=2
+LEVERAGE=5.0
+```
