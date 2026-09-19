@@ -1,0 +1,111 @@
+# AWS Cloud Server Setup Guide
+### Project: Production-Grade Intraday Momentum Bot (Dhan HQ API)
+### Architecture Platform: AWS Graviton (ARM64 Ubuntu Linux)
+
+---
+
+## Phase 1: AWS Cost Guardrails & Security Setups
+1. Sign up/Log in to the [AWS Management Console](https://amazon.com).
+2. In the top search bar, search for **Budgets** and click **Create budget**.
+   - Choose **Cost budget (Recommended)**.
+   - Set Period to **Monthly**.
+   - Set Budgeted Amount to **\$5.00** (approx. ₹420 INR).
+   - Configure alerts to send an email to your inbox if actual or forecasted costs exceed 80%.
+3. In the top search bar, search for **EC2** and click **Launch instance**.
+
+---
+
+## Phase 2: Provisioning the Graviton EC2 Instance
+Configure your virtual server profile using these exact settings:
+
+* **Name:** `Dhan-Momentum-Bot-Production`
+* **Application and OS Image (AMI):** Select **Ubuntu**, then choose **Ubuntu Server 24.04 LTS**.
+* **Architecture:** Change the radio button from *x86_64* to **arm64** *(Unlocks high-efficiency Graviton computing)*.
+* **Instance Type:** Select **t4g.small** *(Includes a free-trial tier for testing architectures)*.
+* **Key Pair (Login Credentials):** Click **Create new key pair**.
+  - Key pair name: `bot_key`
+  - Private key file format: Select `.pem` 
+  - Click **Create key pair** and download the file. Save this securely on your desktop.
+* **Network Settings (Security Group):**
+  - Check **Allow SSH traffic from**.
+  - **CRITICAL SECURITY CHANGE:** Change the dropdown menu from *Anywhere (0.0.0.0/0)* to **My IP** *(Blocks public hackers, allowing only your home network connection)*.
+* Click **Launch Instance** at the bottom right.
+
+---
+
+## Phase 3: Linux Command Terminal Execution Setup
+
+Once your instance status shows "Running", copy its **Public IPv4 address** from the AWS console. Open your computer's terminal (or Git Bash / Command Prompt) and run the following terminal script:
+
+```bash
+# Step 1: Navigate to the local folder where you downloaded your 'bot_key.pem'
+cd ~/Desktop  # (Or path to your downloads folder)
+
+# Step 2: Secure the file permissions of your key file (Mandatory for Linux/Mac users)
+chmod 400 bot_key.pem
+
+# Step 3: Establish a secure SSH connection to your cloud instance
+# (Replace 'YOUR_AWS_PUBLIC_IP' with the actual IP address copied from AWS console)
+ssh -i "bot_key.pem" ubuntu@YOUR_AWS_PUBLIC_IP
+```
+
+---
+
+## Phase 4: Server Environment Dependency Provisioning
+
+Once inside your new Ubuntu Linux environment, copy and paste this command block to completely prepare your OS to handle your vectorized quant models and cryptographic operations:
+
+```bash
+# 1. Synchronize package indexes and apply latest security upgrades
+sudo apt update && sudo apt upgrade -y
+
+# 2. Install Python runtime, core compilation tooling, and vector engines
+sudo apt install python3-pip python3-pandas python3-numpy -y
+
+# 3. Install required web request libraries, TOTP generator engines, and time-zone packages
+pip3 install requests pyotp zoneinfo python-dotenv --break-system-packages
+
+# 4. Generate your production directory path
+mkdir -p /home/ubuntu/dhan_momentum_bot
+cd /home/ubuntu/dhan_momentum_bot
+```
+
+*Note: Now, open your graphical file manager program (like **FileZilla** or **WinSCP**) on your personal laptop, establish an **SFTP** connection using your public server IP and `bot_key.pem` as authentication, and upload your 4 project files (`config.env`, `dhan_auth.py`, `engine.py`, `main.py`) directly into the `/home/ubuntu/dhan_momentum_bot` directory.*
+
+---
+
+## Phase 5: Production Operational Deployment
+
+Log back into your AWS server command-line terminal to input your secure credentials and automate the morning activation routines:
+
+```bash
+# Step 1: Move into the production folder layout
+cd /home/ubuntu/dhan_momentum_bot
+
+# Step 2: Open your config environment file to add real keys
+nano config.env
+# [INSTRUCTIONS: Paste your Client ID, API Keys, and 2FA TOTP Seed Key into this file. 
+#  Press Ctrl+O followed by Enter to write changes out, then press Ctrl+X to exit nano]
+
+# Step 3: Open the automated background OS cron engine scheduler
+crontab -e
+# [INSTRUCTIONS: If prompted, select '1' for the standard /bin/nano text interface]
+```
+
+Scroll all the way down to the blank line at the bottom of the crontab configuration layout page and paste this exact automated trigger entry line:
+
+```text
+00 06 * * 1-5 cd /home/ubuntu/dhan_momentum_bot && /usr/bin/python3 main.py >> /home/ubuntu/dhan_momentum_bot/execution_history.log 2>&1
+```
+*Save and close crontab (`Ctrl+O`, `Enter`, `Ctrl+X`). Your system is now fully automated to boot, authenticate at 6:00 AM, and trade at 9:46 AM Monday through Friday hands-free.*
+
+---
+
+## Phase 6: Instant Operational Verification Test
+
+To verify that your environment setup, Python paths, dependencies, and Dhan credentials integrate seamlessly without errors before tomorrow morning, force-execute a test right now:
+
+```bash
+# Manually run the orchestrator entry script right now to check pipeline logs
+python3 main.py
+```
