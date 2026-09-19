@@ -1,0 +1,60 @@
+Role: Institutional Quantitative Finance Engineer & Python Developer
+Project: Production-Grade, Multi-Threaded Intraday Momentum Trading Architecture (Dhan HQ API)
+
+Objective:
+Generate a completely clean, class-based, modular algorithmic trading system distributed across exactly four files as specified below. The system must run autonomously on an AWS Graviton Linux instance (t4g/ARM64 platform), executing entirely hands-free.
+
+---
+
+### FILE 1: config.env
+Provide a template structure containing exactly these environment variables:
+DHAN_CLIENT_ID="your_client_id"
+DHAN_API_KEY="your_api_key"
+DHAN_API_SECRET="your_api_secret"
+DHAN_TOTP_SECRET="your_alphanumeric_2fa_seed"
+ENVIRONMENT="SANDBOX" # Options: SANDBOX or PRODUCTION
+DRY_RUN="false"
+TOTAL_CAPITAL=2000
+MAX_ACTIVE_TRADES=2
+LEVERAGE=5.0
+
+---
+
+### FILE 2: dhan_auth.py
+Create an authentication layer that automates the daily login sequence via TOTP.
+- Use the `pyotp` library to dynamically generate a 6-digit verification code using the `DHAN_TOTP_SECRET` variable from config.env.
+- Build a function `get_daily_access_token()` that makes a synchronous POST request to Dhan's active authentication endpoint: `https://dhan.co` containing the client ID, API key, API secret, and generated TOTP.
+- Parse the response, extract the 24-hour access token, and provide a secure initialization method to pass this token to the REST execution layer.
+
+---
+
+### FILE 3: engine.py
+Build the core high-performance quantitative pipeline. It must contain three distinct, separated classes:
+
+1. Class DhanRESTClient:
+- Build an elegant REST interface using a `requests.Session()` object configured with standard retry logic (handle HTTP 429, 500, 502, 503, 504 with an exponential backoff sleep up to 3 attempts).
+- Base URLs must dynamically adapt: use `https://dhan.co` if ENVIRONMENT="SANDBOX" and `https://dhan.co` if ENVIRONMENT="PRODUCTION".
+- Implement endpoints for: downloading the daily security master CSV file, retrieving historical 5-minute candles, fetching real-time snapshot market quotes, and submitting bracket orders (`productType="BO"`, `orderType="LIMIT"`).
+
+2. Class DataProcessor (Fully Vectorized Calculations):
+- `add_indicators(df)`: Accept a 5-minute candlestick DataFrame. Use Pandas/NumPy vectorization to calculate a 9 EMA and a 21 EMA. Calculate intraday Session VWAP using `(Typical Price * Volume).cumsum() / Volume.cumsum()`. Generate strict true crossing booleans: `Cross_Up` (9 EMA crossed above 21 EMA on the closed bar) and `Cross_Down` (9 EMA crossed below 21 EMA on the closed bar).
+- `calculate_rvol(history, target_timestamp)`: Calculate Relative Volume by dividing the current 09:40-09:45 candle volume by the mathematical mean volume of the same exact 5-minute time window over the prior 10 trading sessions.
+
+3. Class OrderExecutionEngine:
+- `calculate_quantity(entry_price)`: Read allocation from config.env. Mathematically implement floor division: `quantity = int((allocated_capital * leverage) // entry_price)`. If quantity resolves to 0, log it cleanly and skip the stock without stopping the execution flow.
+- `circuit_guard(entry_price, upper_circuit, lower_circuit)`: Return True to block execution if the entry price sits within 1% of either daily limit boundary.
+- `build_bracket_payload()`: Convert a fixed 0.70% Profit Target and a fixed 0.35% Stoploss into absolute point movement offsets. Normalize these numbers using `math.ceil` to align perfectly with the target stock's native `tick_size` extracted from the security master data.
+
+---
+
+### FILE 4: main.py
+The orchestration file containing the unified workflow and timing scheduler.
+- Pre-Market Phase: Download Dhan's security master CSV file. Parse the current Nifty 500 universe and programmatically drop/exclude all Nifty 50 constituent ticker symbols. Filter out any stock whose market price exceeds INR 1,000. Map remaining symbols to Dhan's internal integer `securityId` values.
+- MarketScheduler Phase: Implement a background silent loop. If launched at 6:00 AM, log system initialization and enter a deep sleep. Print no market data logs or pricing lookups until exactly 09:46:00 AM IST.
+- Trigger Phase (09:46:00 AM IST): Fetch the historical 5-minute candle data up to the 09:45 AM closed candle.
+- MULTI-THREADING REQUIREMENT: Because processing 450 stocks sequentially causes severe network latency delays, utilize `concurrent.futures.ThreadPoolExecutor` (configured with `max_workers=20`) to execute historical data downloads and indicator scans for all 450 stocks in parallel. Complete the entire universe crawl in under 3 seconds.
+- Strategy Filtering: Evaluate only the completed 09:40-09:45 AM bar.
+  * LONG Candidate: Close > VWAP AND Close > Previous Day Close AND RVOL > 2.0 AND 9/21 EMA Cross_Up.
+  * SHORT Candidate: Close < VWAP AND Close < Previous Day Close AND RVOL > 2.0 AND 9/21 EMA Cross_Down.
+- Ranking Matrix: Sort qualifying Longs by maximum intraday percentage velocity (highest gain) and select the single best asset. Sort Shorts by minimum percentage velocity (lowest gain) and select the single best asset. (Maximum 2 active trades total across a INR 2,000 capital frame).
+- Routing Phase: Instantly dispatch the native Dhan Bracket Limit Orders at the exact closing price of the 09:45 AM candle. Cleanly catch exceptions, and output clear timestamps via standard Python logging.
