@@ -1,0 +1,75 @@
+# SYSTEM ARCHITECTURE PROMPT: DUAL-PHASE HIGH-TURNOVER INSTUTITIONAL INTRADAY SCANNER
+
+Act as an expert Quantitative Finance Engineer and Full-Stack Python Developer. Build a production-ready, highly parallelized, live intraday scanning script using the Upstox API V2 that runs continuously on a local machine during Indian stock market hours (09:15 AM to 15:30 IST).
+
+The primary goal of this tool is to identify aggressive institutional order flows in real-time by monitoring 15-minute bar aggregates across a broad stock universe while completely avoiding slow execution times and retail market noise.
+
+---
+
+## 1. CORE OPERATIONAL FRAMEWORK & TIME DYNAMICS
+
+The application must operate within a single, continuous infinite background loop (`while True`) that monitors the local system clock and implements two distinct architectural scanning rules depending on the time of day:
+
+### Phase A: The Morning Opening Bracket (09:15 AM to 09:47 AM IST)
+- **Data Hook:** Requires BOTH the `09:15 - 09:30` and `09:30 - 09:45` completed 15-minute bars.
+- **Scanning Logic:** 
+  - **LONG Setup:** The 09:15 bar close is greater than its open by >0.25%, and the 09:45 bar close is greater than the 09:15 bar open by >0.30%.
+  - **SHORT Setup:** The 09:15 bar close is lower than its open by <-0.25%, and the 09:45 bar close is lower than the 09:15 bar open by <-0.30%.
+- **Trigger Window:** Executes precisely once at 09:46:30 AM IST (giving a 90-second safety window for the Upstox servers to package the completed 09:45 candle).
+
+### Phase B: Mid-Day Speed Momentum (09:47 AM to 15:30 AM IST)
+- **Data Hook:** Evaluates ONLY the single, absolute latest completed 15-minute bar (`iloc[-1]`). 
+- **Objective:** Prevent missing institutional alpha spikes by eliminating the need to wait for multi-candle confirmations.
+- **Scanning Logic:** 
+  - **LONG Setup:** The latest single 15-minute bar returns a close-to-open percentage greater than +0.40%.
+  - **SHORT Setup:** The latest single 15-minute bar returns a close-to-open percentage lower than -0.40%.
+- **Trigger Window:** Automatically fires exactly 90 seconds after any standard 15-minute block closes (e.g., 10:01:30, 10:16:30, 10:31:30, etc.).
+
+---
+
+## 2. HIGH-TURNOVER INSTITUTIONAL GATEKEEPERS
+
+To isolate true institutional momentum from manipulative retail churn, the code must implement strict liquidity and systematic safeguards inside its evaluation pipeline:
+
+1. **The Turnover Floor Filter:** Calculate the exact monetary turnover for the target window: `Turnover (Cr) = (Bar Volume * Bar Close Price) / 10,000,000`. If this value is less than **₹50.0 Crore** (Configurable threshold up to ₹100.0 Crore), instantly drop the stock from processing.
+2. **The Macro Index Correlation Filter:** Before scanning the stock universe, the engine must fetch data for the **NIFTY 50 Index** (`NSE_INDEX|Nifty 50`) and track its immediate intraday directional return. 
+   - Block a **LONG** stock setup if the Nifty index return is currently weak or falling below -0.05%.
+   - Block a **SHORT** stock setup if the Nifty index return is currently strong or rising above +0.05%.
+
+---
+
+## 3. CONCURRENCY, SPEED OPTIMIZATION & DATA CLEANING
+
+To ensure a massive universe can be scanned in under 5 seconds on average hardware, implement the following optimization paradigms:
+
+- **Parallel Processing Pipeline:** Use `concurrent.futures.ThreadPoolExecutor` with a default setting of `max_workers=40`. Network I/O requests for the entire stock universe dictionary must be dispatched simultaneously.
+- **Data Hardening:** The worker threads must parse incoming Upstox JSON arrays (`[Timestamp, Open, High, Low, Close, Volume, OI]`) straight into structured Pandas DataFrames.
+- **Vectorized Casting:** Force immediate casting of data arrays to numeric values using `pd.to_numeric` to eliminate Python runtime tracking overhead. 
+- **Time Out & Failsafes:** Set an explicit 4-second timeout limit on individual HTTP GET requests. If a specific ticker errors or lags, wrap it in a `try-except` block to silently skip it, keeping the thread pool pipeline moving smoothly.
+
+---
+
+## 4. UI OUTPUT & SYSTEM NOTIFICATIONS
+
+- **System Overhead Strategy:** When the loop is waiting for a candle close, use precise timestamp sleep intervals so CPU usage remains near 0%. Print clean terminal tracking logs showing the time remaining until the next scan sequence.
+- **The Execution Alarm:** If a stock successfully passes the Turnover Gatekeeper, the Trend Logic, and the Index Safeguard, clear the terminal line and print a high-contrast markdown table detailing: Ticker Name, Mode Bracket, Direction, Entry Execution Price, Bar Return, and Confirmed Turnover in Crores.
+- **Audio Alarm Sequence:** Trigger system speakers immediately using `winsound.Beep(1300, 400)` repeating 3 times sequentially with a 100ms pause to ensure instant retail notification.
+
+---
+
+## 5. USER ENTRANCE INTERFACE & CREDENTIAL TEMPLATE
+
+Provide an easily accessible configuration section at the top of the file layout:
+```python
+UPSTOX_ACCESS_TOKEN = "PASTE_YOUR_ACTIVE_DAILY_TOKEN_HERE"
+INSTITUTIONAL_TURNOVER_CR = 50.0 # Floor baseline filter
+MAX_PARALLEL_THREADS = 40
+
+# Key Mapping Configuration Dictionary Map
+TARGET_UNIVERSE = {
+    "RELIANCE": "NSE_EQ|INE002A01018",
+    "TCS": "NSE_EQ|INE467B01029"
+}
+```
+
+Generate clean, PEP8-compliant, modular Python code following this exact structural specification. Ensure no code blocks are clipped or omitted.
